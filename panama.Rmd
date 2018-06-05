@@ -1,0 +1,501 @@
+---
+title: "Panama Papers Analisis"
+author: "Jose Agustin Spaccesi"
+date: "31 de mayo de 2018"
+output: 
+  html_document:
+   toc: true
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE)
+knitr::opts_chunk$set(message = FALSE)
+knitr::opts_chunk$set(warning = FALSE)
+```
+
+# Panama Paperes
+
+The Panama Papers are 11.5 million leaked documents that detail financial and attorney–client information for 213.634 offshore entities.The documents, were created by, and taken from, Panamanian law firm and corporate service provider Mossack Fonseca, and were leaked in 2015 by an anonymous source.
+
+Those involved contracted with the law firm, Mossack Fonseca, consultants for companies, services consisting in founding and establishing companies registered in a tax haven in such a way that they fulfilled the primary objective of hiding the identity of the owners. (Los implicados contrataban con el bufete de abogados consultores de empresas, Mossack Fonseca, servicios consistentes en fundar y establecer compañ??as inscritas en un para??so fiscal de modo tal que cumpliesen con el objetivo primario de «ocultar la identidad de los propietarios»)
+
+The total size of the archives is about 2,6 TeraBytes.
+
+```{r echo = FALSE}
+library(knitr)
+
+kable(data.frame(Type = c("E-mail", "Data base", "PDF", "Image", "Text Document", "Other"), Quantity = c("480.461.817", "304.730.617", "215.426.417", "111.702.617", "32.916.617", "2.242")),caption = "Composed of: ")
+```
+
+#Data sets
+
+The data set we used for the analisis was taked from [OFFSHORE LEAKS DATABASE](https://offshoreleaks.icij.org/pages/database) by The International Consortium of Investigative Journalists.
+
+
+*"The International Consortium of Investigative Journalists is a global network of more than 190 investigative journalists in more than 65 countries who collaborate on in-depth investigative stories."*
+
+
+The data set is composed by five `.csv` files:
+
+* **Edges:** `panama_papers.edges.csv`
+* **Addresses:** `panama_papers.nodes.address.csv`
+* **Entity nodes:** `panama_papers.nodes.entity.csv`
+* **Intermediary nodes:** `panama_papers.nodes.intermediary.csv`
+* **Officer nodes:** `panama_papers.nodes.officer.csv`
+
+
+On the other hand, it was powered by [Neo4j](https://neo4j.com/) a graph database that structures data in nodes. The data base follows the folliwing structure:
+
+```{r echo=FALSE, out.width='100%'}
+#Thanks to https://stackoverflow.com/questions/36350213/how-to-insert-plain-picture-jpeg-png-from-chunk-with-knitr?utm_medium=organic&utm_source=google_rich_qa&utm_campaign=google_rich_qa
+#and https://www.lyonwj.com/2017/11/28/geocoding-paradise-papers-neo4j-spatial-visualization/
+knitr::include_graphics('Inkeddatamodel_LI.jpg')
+```
+
+
+
+We also used a `.geo.json` file for the interactive map provided by [GeoJSON-maps](https://geojson-maps.ash.ms/) with information about location and demographic aspect of each country.
+
+* **GeoJSON:** `customworld.geo.json`
+
+#Importing and Exploring
+
+For importing the `.csv` files we use the `read_csv()` function from the **readr** package.
+
+```{r}
+#Loading readr package
+library(readr)
+library(dplyr)
+
+#Importing Edges
+edges <- read_csv("panama_papers.edges.csv", col_types = cols(
+  START_ID = col_character(),
+  TYPE = col_factor(levels = c("intermediary_of", "officer_of", "registered_address")),
+  END_ID = col_character(),
+  link = col_character(),
+  start_date = col_date(format = "%d-%b-%Y"),
+  end_date = col_date(format = "%d-%b-%Y"),
+  sourceID = col_character(),
+  valid_until = col_character()
+  )
+)
+
+#Importing Nodes
+nodes_officer <- read_csv("panama_papers.nodes.officer.csv", col_types = cols(
+  node_id = col_character(),
+  name = col_character(),
+  country_codes = col_character(),
+  countries = col_character(),
+  sourceID = col_character(),
+  valid_until = col_character(),
+  note = col_character()
+  )
+)
+nodes_address <- read_csv("panama_papers.nodes.address.csv", col_types = cols(
+  node_id = col_character(),
+  name = col_character(),
+  address = col_character(),
+  country_codes = col_character(),
+  countries = col_character(),
+  sourceID = col_character(),
+  valid_until = col_character(),
+  note = col_character()
+  )
+)
+nodes_entity <- read_csv("panama_papers.nodes.entity.csv", col_types = cols(
+  node_id = col_character(),
+  name = col_character(),
+  jurisdiction = col_character(),
+  jurisdiction_description = col_character(),
+  country_codes = col_character(),
+  countries = col_character(),
+  incorporation_date = col_date(format = "%d-%b-%Y"),
+  inactivation_date = col_date(format = "%d-%b-%Y"),
+  struck_off_date = col_date(format = "%d-%b-%Y"),
+  closed_date = col_date(format = "%d-%b-%Y"),
+  ibcRUC = col_character(),
+  status = col_factor(levels = c("Active", "Shelf company", "Defaulted",  "Dissolved shelf company", "Trash company", "Changed agent", "Dissolved")),
+  company_type = col_character(),
+  service_provider = col_character(),
+  sourceID = col_character(),
+  valid_until = col_character(),
+  note = col_character()
+  )
+)
+nodes_intermediary <- read_csv("panama_papers.nodes.intermediary.csv",  col_types = cols(
+  node_id = col_character(),
+  name = col_character(),
+  country_codes = col_character(),
+  countries = col_character(),
+  status = col_factor(levels = c("ACTIVE", "SUSPENDED", "CLIENT IN REPRESENTATIVE TERRITORY", "DELINQUENT", "INACTIVE", "UNRECOVERABLE ACCOUNTS")),
+  sourceID = col_character(),
+  valid_until = col_character(),
+  note = col_character()
+  ) 
+)
+```
+
+For the `.geo.json` file we use the `geojson_read()` from the **geojsonio** package, with the `what` argument equal to *"sp"*.
+
+```{r}
+#Importing map data thanks to https://geojson-maps.ash.ms/
+world_map <- geojsonio::geojson_read("customworld.geo.json", what = "sp")
+```
+
+##Edges
+
+The Edges file keep the information about relationship between entity, officer, intermediaries and their adresses and is contained in the `panama_papers.edges.csv` file.
+
+Using `glimpse()` function from **dplyr** package we display the structure of the imported files. We use `glimpse()` and not `str()` beacuse the visualization looks cleaner. 
+
+```{r}
+glimpse(edges)
+```
+
+As we see, this data frame has 8 variables and 674.102 observations. Variables are:
+
+* `START_ID` is an **character** that show, using a code number, the starting node of the tides between two nodes of different type.
+* `TYPE` is a **factor** that show the type of conection between the nodes. Possible values are "intermediary_of", "officer_of" and "registered_address".
+* `END_ID` is an **character** that show, using a code number, the ending node of the tides between two nodes.
+* `link` is a **character** that describe the type of relationship between the nodes in a deep way.
+* `start_date` starting **date** of the relationship. Most of the times is missing.
+* `end_date` ending **date** of the relationship. Most of the times is missing.
+* `sourceID` in this files the source is always *"Panama Papers"*.
+* `valid_until` 
+
+Using this file we obtained information about the frequency that any node appear.
+
+```{r}
+
+end_node <- edges %>%  
+  count(END_ID) %>%
+  rename(node_id = END_ID)
+  
+start_node <- edges %>%  
+  count(START_ID) %>%
+  rename(node_id = START_ID)
+
+freq <- end_node %>%
+  full_join(start_node, by = "node_id")
+
+rm(start_node, end_node)
+
+freq[is.na(freq)] <- 0
+  
+freq_ready <- freq %>%
+  mutate(freq = n.x + n.y) %>%
+  select(node_id , freq) %>%
+  arrange(desc(freq))
+
+rm(freq)
+
+edges2 <- edges %>%
+  select(1,3)
+```
+
+##Nodes
+
+We combine all nodes data sets into one, keeping only useful variables using **dplyr** package.
+
+```{r}
+#Selecting usefu columns
+entity <- nodes_entity %>%
+  select(1,2,5) %>%
+  mutate(type = "entity")
+
+intermediary <- nodes_intermediary %>%
+  select(1:3) %>%
+  mutate(type = "intermediary")
+
+officer <- nodes_officer %>%
+  select(1:3) %>%
+  mutate(type = "officer")
+
+adress <- nodes_address %>%
+  select(1,2,4) %>%
+  mutate(type = "adress")
+
+#Putting all together 
+nodes <- bind_rows(entity,intermediary,officer,adress)
+
+#Cleaning memory
+rm(entity,intermediary,officer,adress)
+
+#JOINING information of nodes
+nodes_freq <- freq_ready %>%
+  inner_join(nodes, by = "node_id")
+
+#Information for the map by country
+country_freq <- nodes_freq %>%
+  group_by(country_codes) %>%
+  summarise(sum = sum(freq)) %>%
+  rename(ISO3 = country_codes)
+
+```
+
+```{r}
+glimpse(nodes)
+```
+
+On the other hand, any nodes type has its owns atributes as we will see in the following part.
+
+###Entity Nodes
+
+This file containe information about entity nodes.
+
+```{r}
+glimpse(nodes_entity)
+```
+
+The file is composed by 213.634 observations and 17 variables.
+
+Variables are:
+
+* `node_id` is a **character** that has the numeric code that identify unequibocaly the node. `node_id` is the **key** of the Entity.
+* `name` is a **character** that has the name of the entity.
+* `jurisdiction` is a **character**
+* `jurisdiction_description`is a **character**
+* `country_codes` is a **character** that contain the code of the country where the entity is located. The code is composed by three letters.
+* `countries`is a **character** that has the name of the country where the entity is located.
+* `incorporation_date` incorporation **date** of the entity node.
+* `inactivation_date` inactivation **date** of the entity node.
+* `struck_off_date` struck off **date** of the entity node.
+* `closed_date` closed **date** of the entity node.
+* `ibcRUC`
+* `status` is a **factor** that show the actual stauts of the Entity. Possible values are "Active", "Shelf company", "Defaulted",  "Dissolved shelf company", "Trash company", "Changed agent" and "Dissolved".
+* `company_type`
+* `service_provider` the original file was taken from Mossack Fonseca, so the value of this variable is alwas a **character** "Mossack Fonseca"
+* `sourceID` in this files the source is always *"Panama Papers"*.
+* `valid_until`
+* `note`
+
+###Adresses
+
+This file containe information about know adresses of the nodes.
+
+```{r}
+glimpse(nodes_address)
+```
+
+This file is composed by 93.454 observations and 8 variables.
+
+Variables are:
+
+* `node_id` is a **character** that has the numeric code that identify unequibocaly the node. `node_id` is the **key** of the Entity.
+* `name` is a **character** that has the name of the adress.
+* `address`
+* `country_codes` 
+* `countries`
+* `sourceID` in this files the source is always *"Panama Papers"*.
+* `valid_until`
+* `note`
+
+###Officer Nodes
+
+
+```{r}
+glimpse(nodes_officer)
+```
+
+This file is composed by 238.402 observations and 7 variables.
+
+Variables are:
+
+* `node_id` is a **character** that has the numeric code that identify unequibocaly the node. `node_id` is the **key** of the Entity.
+* `name` is a **character** that has the name of the officer.
+* `country_codes` is a **character** that contain the code of the country where the office is located. The code is composed by three letters.
+* `countries` is a **character** that has the name of the country where the office is located.
+* `sourceID` in this files the source is always *"Panama Papers"*.
+* `valid_until`
+* `note`
+
+###Intermediary Nodes
+
+ 
+
+```{r}
+glimpse(nodes_intermediary)
+```
+This file is composed by 14.110 observations and 8 variables.
+
+Variables are:
+
+* `node_id` is a **character** that has the numeric code that identify unequibocaly the node. `node_id` is the **key** of the Entity.
+* `name` is a **character** that has the name of the intermediary.
+* `country_codes` is a **character** that contain the code of the country where the intermediary is located. The code is composed by three letters.
+* `countries` is a **character** that has the name of the country where the intermediary is located.
+* `status` is a **factor** that show the actual status of the intermediary. Posible values are "ACTIVE", "SUSPENDED", "CLIENT IN REPRESENTATIVE TERRITORY", "DELINQUENT", "INACTIVE" and "UNRECOVERABLE ACCOUNTS".
+* `sourceID` in this files the source is always *"Panama Papers"*.
+* `valid_until`
+* `note`
+
+Intermediaries are companies that NEXOS DE UNION ENTRE OTRAS COMPANIAS that means there are in two countries. That is why sometimes intermediaries are between two countries. This is not good for our analysis, so using **dplyr**, **stringr** and **rebus** packages we add half of the number of intermediaries to each country
+
+```{r}
+library(stringr)
+library(rebus)
+
+#Taking organizarions in two countries 
+pattern <- START %R% capture(one_or_more(WRD)) %R% ";" %R% capture(one_or_more(WRD)) %R% END #rebus package
+bad_countries <- as.data.frame(str_match(country_freq$ISO3, pattern = pattern))
+rm(pattern)
+
+#Adding number
+bad_countries$sum <- country_freq$sum/2
+
+#Organizing the data set
+bad_1 <- bad_countries %>% #Countries in one side
+  select(2, 4) %>%
+  na.omit() %>%
+  group_by(V2) %>%
+  summarise(sum = sum(sum))
+
+bad_2 <- bad_countries %>% #In the other side
+  select(3, 4) %>%
+  na.omit() %>%
+  group_by(V3) %>%
+  summarise(sum = sum(sum))
+
+bad_countries <- full_join(bad_1, bad_2, by = c("V2"="V3")) #Putting together
+
+rm(bad_1, bad_2) #Deleting intermediary variables
+
+bad_countries[is.na(bad_countries)] <- 0 #Replacing NAs with 0s
+
+bad <- bad_countries %>%
+  mutate(freq = sum.x + sum.y) %>%
+  rename("node_id"=V2) %>%
+  select(node_id , freq) 
+
+rm(bad_countries)
+
+```
+
+```{r echo = FALSE}
+#Cleaning memory
+rm(nodes_address,nodes_entity,nodes_intermediary,nodes_officer)
+rm(edges, nodes)
+```
+
+##GeoJSON
+
+This file contain all the necesary information for plot an interactive map plus demografic information, such as, population or GDP of every country.
+It has a very complicated structure so we are just going to display the structure of the data of each country.
+
+```{r echo=FALSE}
+glimpse(world_map@data)
+```
+
+Still it is to much for explain every variable, thats why we are just going to define the columns we will use in the future.
+
+* `adm0_a3`
+* `pop_est`
+* `gdp_md_est`
+* `economy` 
+* `iso_a3`
+* `continent`
+
+#Analisis
+
+Questions why will try to answer in this project:
+
+* Which is the country with more offshore companies according to Panama Papers?
+* Which are the most important nodes of the Panama Papers network?
+* panama papers as an idicator of corrupcion by counrty. 
+
+
+
+
+## Interactive map
+
+```{r echo=FALSE}
+library(shiny)
+library(leaflet)
+
+
+
+#JOINING data of PANAMA PAPERS
+data_from_json <- world_map@data
+data_join <- left_join(data_from_json, country_freq, by = c("adm0_a3"="ISO3"))
+
+data_join$sum[is.na(data_join$sum)] <- 0
+
+world_map@data <- data_join
+
+#Configuring colours of the map
+bins <- c(0, 50, 100, 1000, 2000, 5000, 10000, 20000, Inf)
+pal <- colorBin("PuBu", domain = world_map$sum, bins = bins)
+
+#Interactive labels
+labels <- sprintf("<strong>%s</strong><br/>%g casos",
+                  world_map$name, world_map$sum) %>% 
+  lapply(htmltools::HTML)
+
+#Ploting the map thanks to https://rstudio.github.io/leaflet/
+leaflet(data = world_map) %>% 
+  addTiles() %>%
+  addPolygons(stroke = FALSE,
+              fillColor = ~pal(sum), #Colours by number of cases
+              fillOpacity = 0.7,
+              highlight = highlightOptions( #Interactive Polygon
+                fillOpacity = 0.9,
+                bringToFront = TRUE),
+              label = labels, #Interactive labels
+              labelOptions = labelOptions( #Labels Options
+                style = list("font-weight" = "normal", padding = "3px 8px"),
+                textsize = "15px",
+                direction = "auto")) %>%
+  addLegend(pal = pal, 
+            values = ~sum, 
+            opacity = 0.7, 
+            title = "Cases by country",
+            position = "bottomright") %>%
+  addEasyButton(easyButton( #Default View button
+    icon="fa-globe", title="Default View",
+    onClick=JS("function(btn, map){ map.setZoom(1); }"))) %>%
+  setView(0,0,1)
+
+```
+
+## Alcance de los papeles
+
+As we see on the map, basically all the world is embolled in the Panama papers. the following table show the countries with the most number of cases.
+
+```{r echo=FALSE}
+#Tabla con los paises con mas casos
+kable(data.frame(Type = c("E-mail", "Data base", "PDF", "Image", "Text Document", "Other"), Quantity = c("480.461.817", "304.730.617", "215.426.417", "111.702.617", "32.916.617", "2.242")),caption = "Composed of: ")
+```
+
+Of course is not right to speak about number of cases if we do not consider how many people us leving in the country. 
+
+```{r echo = FALSE}
+#Tabla con indice casos/poblacion
+kable(data.frame(Type = c("E-mail", "Data base", "PDF", "Image", "Text Document", "Other"), Quantity = c("480.461.817", "304.730.617", "215.426.417", "111.702.617", "32.916.617", "2.242")),caption = "Composed of: ")
+```
+
+As we see, 
+
+```{r echo=FALSE} 
+#Grafico numero de casos gdp de cada pais
+library(ggplot2)
+
+#ggplot(data, aes(x = gdp, y = n_cases, color = continent, size = population)) +
+#  geom_point()+
+#  theme_minimal()+
+#  labs(
+#    x = "GDP",
+#    y = "",
+#    caption = "",
+#    title = ""
+#  )
+  
+  
+```
+
+
+
+##Interactive Network
+
+
+*This inform was done for the "Data Management for Big Data" course from "Universit? degli studi di Trieste" year 2017-2018 by Jos? Agustin Spaccesi*
+
