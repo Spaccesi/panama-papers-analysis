@@ -2,7 +2,7 @@
 title: "Panama Papers Analisis"
 author: "Jose Agustin Spaccesi"
 date: "31 de mayo de 2018"
-#runtime: shiny
+#runtime: shiny #Interactividad
 output: 
   html_document:
    toc: true
@@ -14,23 +14,38 @@ knitr::opts_chunk$set(message = FALSE)
 knitr::opts_chunk$set(warning = FALSE)
 ```
 
+```{r echo = FALSE, message = FALSE, warning = FALSE}
+library(knitr) #Tablas e imagenes
+library(readr) #Importar
+library(dplyr) #Ordenar
+library(stringr) #Tratar strings
+library(rebus) #El patron
+library(leaflet) #Mapas
+library(ggplot2) #Graficos
+#library(shiny) #Interactividad
+```
+
+
 # Panama Paperes
 
-The Panama Papers are 11.5 million leaked documents that detail financial and attorney-client information for 213.634 offshore entities.The documents, were created by, and taken from, Panamanian law firm and corporate service provider Mossack Fonseca, and were leaked in 2015 by an anonymous source.
 
-Those involved contracted with the law firm, Mossack Fonseca, consultants for companies, services consisting in founding and establishing companies registered in a tax haven in such a way that they fulfilled the primary objective of hiding the identity of the owners. (Los implicados contrataban con el bufete de abogados consultores de empresas, Mossack Fonseca, servicios consistentes en fundar y establecer compa???as inscritas en un para??so fiscal de modo tal que cumpliesen con el objetivo primario de ?ocultar la identidad de los propietarios?)
+The Panama Papers are 11.5 million leaked documents that detail financial and attorney-client information for 213.634 offshore entities. The documents were created by, and taken from, Panamanian law firm and corporate service provider Mossack Fonseca, and were leaked in 2015 by an anonymous source.
+
+Those involved contracted with the law firm, Mossack Fonseca, consultants for companies, services consisting in founding and establishing companies registered in a tax haven in such a way that they fulfilled the primary objective of hiding the identity of the owners.
+
+The involved ones hired the Mossack Fonseca firm as consultors trying to make buys in tax heavens occulting the identity of the owners.
 
 The total size of the archives is about 2,6 TeraBytes.
 
 ```{r echo = FALSE}
-library(knitr)
-
 kable(data.frame(Type = c("E-mail", "Data base", "PDF", "Image", "Text Document", "Other"), Quantity = c("480.461.817", "304.730.617", "215.426.417", "111.702.617", "32.916.617", "2.242")),caption = "Composed of: ")
 ```
 
+
 #Data sets
 
-The data set we used for the analisis was taked from [OFFSHORE LEAKS DATABASE](https://offshoreleaks.icij.org/pages/database) by The International Consortium of Investigative Journalists.
+
+The data set we used for the analysis was taken from [OFFSHORE LEAKS DATABASE](https://offshoreleaks.icij.org/pages/database) by The International Consortium of Investigative Journalists.
 
 
 *"The International Consortium of Investigative Journalists is a global network of more than 190 investigative journalists in more than 65 countries who collaborate on in-depth investigative stories."*
@@ -44,30 +59,29 @@ The data set is composed by five `.csv` files:
 * **Intermediary nodes:** `panama_papers.nodes.intermediary.csv`
 * **Officer nodes:** `panama_papers.nodes.officer.csv`
 
+On the other hand, it was powered by [Neo4j](https://neo4j.com/) a graph database that structures data in nodes. The data base follows the following structure:
 
-On the other hand, it was powered by [Neo4j](https://neo4j.com/) a graph database that structures data in nodes. The data base follows the folliwing structure:
 
 ```{r echo=FALSE, out.width='100%'}
 #Thanks to https://stackoverflow.com/questions/36350213/how-to-insert-plain-picture-jpeg-png-from-chunk-with-knitr?utm_medium=organic&utm_source=google_rich_qa&utm_campaign=google_rich_qa
 #and https://www.lyonwj.com/2017/11/28/geocoding-paradise-papers-neo4j-spatial-visualization/
-knitr::include_graphics('Inkeddatamodel_LI.jpg')
+knitr::include_graphics('datamodel.jpg')
 ```
 
 
+As we see in this diagram provided by [Lyonwj](https://www.lyonwj.com/2017/11/28/geocoding-paradise-papers-neo4j-spatial-visualization/) there are three **Entity** ("Address", "Officer", "Entity") and the **Relationships** are stored in an edges data base. According to the *Entity-Relationship model*.
 
 We also used a `.geo.json` file for the interactive map provided by [GeoJSON-maps](https://geojson-maps.ash.ms/) with information about location and demographic aspect of each country.
 
 * **GeoJSON:** `customworld.geo.json`
 
+
 #Importing and Exploring
+
 
 For importing the `.csv` files we use the `read_csv()` function from the **readr** package.
 
 ```{r}
-#Loading readr package
-library(readr)
-library(dplyr)
-
 #Importing Edges
 edges <- read_csv("panama_papers.edges.csv", col_types = cols(
   START_ID = col_character(),
@@ -143,11 +157,13 @@ For the `.geo.json` file we use the `geojson_read()` from the **geojsonio** pack
 world_map <- geojsonio::geojson_read("customworld.geo.json", what = "sp")
 ```
 
+
 ##Edges
 
-The Edges file keep the information about relationship between entity, officer, intermediaries and their adresses and is contained in the `panama_papers.edges.csv` file.
 
-Using `glimpse()` function from **dplyr** package we display the structure of the imported files. We use `glimpse()` and not `str()` beacuse the visualization looks cleaner. 
+The Edges file keep the information about relationship between entity, officer, intermediaries and their addresses and is contained in the `panama_papers.edges.csv` file.
+
+Using `glimpse()` function from **dplyr** package we display the structure of the imported files. We use `glimpse()` and not `str()` because the visualization looks cleaner.
 
 ```{r}
 glimpse(edges)
@@ -155,34 +171,38 @@ glimpse(edges)
 
 As we see, this data frame has 8 variables and 674.102 observations. Variables are:
 
-* `START_ID` is an **character** that show, using a code number, the starting node of the tides between two nodes of different type.
-* `TYPE` is a **factor** that show the type of conection between the nodes. Possible values are "intermediary_of", "officer_of" and "registered_address".
+* `START_ID` is a **character** that show, using a code number, the starting node of the tides between two nodes of different type.
+* `TYPE` is a **factor** that show the type of connection between the nodes. Possible values are "intermediary_of", "officer_of" and "registered_address".
 * `END_ID` is an **character** that show, using a code number, the ending node of the tides between two nodes of different type.
 * `link` is a **character** that describe the type of relationship between the nodes in a deep way.
 * `start_date` starting **date** of the relationship. Most of the times is missing.
 * `end_date` ending **date** of the relationship. Most of the times is missing.
-* `sourceID` in this files the source is always *"Panama Papers"*.
+* `sourceID` in these files the source is always *"Panama Papers"*.
 * `valid_until` we do not know the meaning of this variable.
 
 
 ##Nodes
 
+
 ###Entity Nodes
 
-This file containe information about entity nodes.
+
+This file contained information about entity nodes.
+
 
 ```{r}
 glimpse(nodes_entity)
 ```
 
+
 The file is composed by 213.634 observations and 17 variables.
 
 Variables are:
 
-* `node_id` is a **character** that has a numeric code that identify unequibocaly the node. `node_id` is the **key** of the Entity.
+* `node_id` is a **character** that has a numeric code that identify unequivocally the node. `node_id` is the **key** of the Entity.
 * `name` is a **character** that has the name of the entity.
 * `jurisdiction` is a **character** with the code of the country where the entity has jurisdiction. The code is composed by three letters.
-* `jurisdiction_description`is a **character** that has the name of the country where the entity has jurisdiction.
+* `jurisdiction_description` is a **character** that has the name of the country where the entity has jurisdiction.
 * `country_codes` is a **character** that contain the code of the country where the entity is located. The code is composed by three letters.
 * `countries`is a **character** that has the name of the country where the entity is located.
 * `incorporation_date` incorporation **date** of the entity node.
@@ -190,95 +210,114 @@ Variables are:
 * `struck_off_date` struck off **date** of the entity node.
 * `closed_date` closed **date** of the entity node.
 * `ibcRUC` we do not know the meaning of this variable.
-* `status` is a **factor** that show the actual stauts of the Entity. Possible values are "Active", "Shelf company", "Defaulted",  "Dissolved shelf company", "Trash company", "Changed agent" and "Dissolved".
+* `status` is a **factor** that show the actual status of the Entity. Possible values are "Active", "Shelf company", "Defaulted”, “Dissolved shelf company", "Trash company", "Changed agent" and "Dissolved".
 * `company_type` the data of this variable is missing.
 * `service_provider` the original file was taken from Mossack Fonseca, so the value of this variable is alwas a **character** "Mossack Fonseca"
-* `sourceID` in this files the source is always *"Panama Papers"*.
+* `sourceID` in these files the source is always *"Panama Papers"*.
 * `valid_until` we do not know the meaning of this variable.
 * `note` possible notes.
 
+
 ###Adresses
 
-This file containe information about the known adresses of the nodes.
+
+This file contained information about the known addresses of the nodes.
+
 
 ```{r}
 glimpse(nodes_address)
 ```
 
+
 This file is composed by 93.454 observations and 8 variables.
 
 Variables are:
 
-* `node_id` is a **character** that has the numeric code that identify unequibocaly the node. `node_id` is the **key** of the Entity.
+* `node_id` is a **character** that has the numeric code that identify unequivocally the node. `node_id` is the **key** of the Entity.
 * `name` missing variable.
-* `address` is a **character** with the adress of the node.
-* `country_codes` is a **character** that contain the code of the country where the adress is located. The code is composed by three letters.
-* `countries`is a **character** that has the name of the country where the adress is located.
+* `address` is a **character** with the address of the node.
+* `country_codes` is a **character** that contain the code of the country where the address is located. The code is composed by three letters.
+* `countries`is a **character** that has the name of the country where the address is located.
 * `sourceID` in this files the source is always *"Panama Papers"*.
 * `valid_until` we do not know the meaning of this variable.
 * `note` possible notes.
 
+
 ###Officer Nodes
 
+
 This file has information about the officers of the companies, such us, stakeholders, owners, directors, etc.
+
 
 ```{r}
 glimpse(nodes_officer)
 ```
 
+
 This file is composed by 238.402 observations and 7 variables.
 
 Variables are:
 
-* `node_id` is a **character** that has the numeric code that identify unequibocaly the node. `node_id` is the **key** of the Entity.
+* `node_id` is a **character** that has the numeric code that identify unequivocally the node. `node_id` is the **key** of the Entity.
 * `name` is a **character** that has the name of the officer.
 * `country_codes` is a **character** that contain the code of the country where the officer is located. The code is composed by three letters.
 * `countries` is a **character** that has the name of the country where the officer is located.
-* `sourceID` in this files the source is always *"Panama Papers"*.
+* `sourceID` in these files the source is always *"Panama Papers"*.
 * `valid_until` we do not know the meaning of this variable.
 * `note` possible notes.
 
+
 ###Intermediary Nodes
 
+
 This file has information about the intermediaries that 
+
 
 ```{r}
 glimpse(nodes_intermediary)
 ```
+
+
 This file is composed by 14.110 observations and 8 variables.
 
 Variables are:
 
-* `node_id` is a **character** that has the numeric code that identify unequibocaly the node. `node_id` is the **key** of the Entity.
+* `node_id` is a **character** that has the numeric code that identify unequivocally the node. `node_id` is the **key** of the Entity.
 * `name` is a **character** that has the name of the intermediary.
 * `country_codes` is a **character** that contain the code of the country where the intermediary is located. The code is composed by three letters. 
 * `countries` is a **character** that has the name of the country where the intermediary is located.
-* `status` is a **factor** that show the actual status of the intermediary. Posible values are "ACTIVE", "SUSPENDED", "CLIENT IN REPRESENTATIVE TERRITORY", "DELINQUENT", "INACTIVE" and "UNRECOVERABLE ACCOUNTS".
-* `sourceID` in this files the source is always *"Panama Papers"*.
+* `status` is a **factor** that show the actual status of the intermediary. Possible values are "ACTIVE", "SUSPENDED", "CLIENT IN REPRESENTATIVE TERRITORY", "DELINQUENT", "INACTIVE" and "UNRECOVERABLE ACCOUNTS".
+* `sourceID` in these files the source is always *"Panama Papers"*.
 * `valid_until` we do not know the meaning of this variable.
 * `note` possible notes.
 
 Intermediaries are companies that NEXOS DE UNION ENTRE OTRAS COMPANIAS that means there are in two countries. That is why sometimes intermediaries are between two countries. This is not good for our analysis, so using **dplyr**, **stringr** and **rebus** packages we add half of the number of intermediaries to each country
 
+
 ##GeoJSON
 
-This file contain all the necesary information for plot an interactive map plus demografic information, such as, population or GDP of every country.
-It has a very complicated structure so we are just going to display the structure of the data of each country (not the polygons).
 
-```{r echo=FALSE}
+This file contains all the necessary information for plot an interactive map plus demographic information, such as, population or GDP of every country.
+It has a very complicated structure, so we are just going to display the structure of the data of each country (not the polygons).
+
+
+```{r}
 glimpse(world_map@data)
 ```
 
-Still it is to much for explain every variable, thats why we are just going to define the columns we will use in the future.
+
+Still it is to much for explain every variable, that’s why we are just going to define the columns we will use in the future.
 
 * `pop_est` is a **integer** with the estimate population of the country.
 * `name` is a **factor** with the name of the country.
-* `gdp_md_est` **is a double** with the estimate gdp of the country.
+* `gdp_md_est` **is a double** with the estimate GDP of the country.
 * `economy` is a **factor** with classify the country according with economic reasons.
 * `iso_a3` is a **factor** that contain the code of the country. The code is composed by three letters.
-* `continent` is a **factor** with the continent that the country bellong.
+* `continent` is a **factor** with the continent that the country belongs.
 
-```{r echo=FALSE}
+Using the internal variable `data` and **dplyr** we are able to add information into the GeoJSON object.
+
+```{r}
 #Adding variables to the JSON file
 data <- world_map@data
 
@@ -301,8 +340,7 @@ intermediary_all <- nodes_intermediary %>%
   na.omit()
 
 #Intermediaries can be in different countries at the same time
-library(stringr)
-library(rebus)
+
 
 #Taking organizarions in two countries 
 pattern <- START %R% capture(one_or_more(WRD)) %R% ";" %R% capture(one_or_more(WRD)) %R% END #rebus package
@@ -367,22 +405,27 @@ data$cases_pop <- data$cases/data$pop_est*10000000
 world_map@data <- data
 
 rm(data_join, pattern, bad)
-
 ```
 
-#Analisis Questions
+
+#Analysis Questions
+
 
 Questions why will try to answer in this project:
 
-* **First:** Which is the country with more imbolved in the Panama Papers?
-* **Second:** Developed countries are more imbollved in the Panama Papers than other countries?
+* **First:** Which are the most involved countries in the Panama Papers?
+* **Second:** Are developed countries are more involved into the Panama Papers than other countries?
 * **Third:** 
 
-# **First:** Which is the country with more imbolved in the Panama Papers?
 
-First of all we will analise the nodes type one by one, country by country.
+# **First:** Which are the most involved countries in the Panama Papers?
+
+
+First of all, we will analyses the nodes type one by one, country by country.
+
 
 ###Number of Entities.
+
 
 Entities are maybe the most interesting "Entity" in this data set. The countries with more entities are Hong Kong, Switzerland, Panama, Jersey and Luxembourg, as we see in the following table.
 
@@ -398,10 +441,7 @@ kable(data_table, caption = "Countries with more number of Entities")
 
 In the following map we can see the distribution of the Entities all around the world.
 
-```{r echo=FALSE}
-library(leaflet)
-
-
+```{r}
     #Configuring colours of the map
     pal <- colorBin("Oranges", domain = world_map$n_ent, bins = c(0, 10, 20, 100, 200, 500, 1000, 2000, Inf))
 
@@ -435,10 +475,11 @@ library(leaflet)
       setView(0,0,1)
 ```
 
+
 In the following char we can see the distribution of entities by the status.
 
+
 ```{r}
-library(ggplot2)
 plot <- as.data.frame(table(nodes_entity$status))
 
 ggplot(plot, aes(x="", y = Freq, fill = Var1)) +
@@ -449,22 +490,24 @@ geom_bar(width = 1, stat = "identity") +
     x = " ",
     y = " ",
     fill = "Status",
-    title = "") +
+    title = "Distribution of Entities by status") +
   theme(
     axis.text.x=element_blank())
 ```
 
 As we can see, most of the entities are in Defaulted status and more the 25% are still Active.
 
-```{r}
+```{r echo=FALSE}
 kable(plot, col.names = c("Status", "Freq"))
 ```
 
+
 ### Number of Intermediaries.
 
-As we see in the following table, the countries with more number of Intermediaries are Hong Kong, United Kingdom, Switzerland, United States and Panama. The number is double beacause an Intermediary can be two different countries at the same time.
 
-```{r}
+As we see in the following table, the countries with more number of Intermediaries are Hong Kong, United Kingdom, Switzerland, United States and Panama. The number is double because an Intermediary can be two different countries at the same time.
+
+```{r echo=FALSE}
 data_table <- data %>%
   select(name, adm0_a3, n_int) %>%
   arrange(-n_int) %>%
@@ -477,9 +520,6 @@ kable(data_table, caption = "Countries with more number of Intermediaries")
 In the following map we can see the distribution of the Intermediaries all around the world.
 
 ```{r echo=FALSE}
-library(leaflet)
-
-
     #Configuring colours of the map
     pal <- colorBin("YlGn", domain = world_map$n_int, bins = c(0, 10, 20, 100, 200, 400, 700, 1000, Inf))
 
@@ -513,10 +553,11 @@ library(leaflet)
       setView(0,0,1)
 ```
 
-In the following char we can see the distribution of inermediaries by the status.
 
-```{r}
-library(ggplot2)
+In the following char we can see the distribution of intermediaries by the status.
+
+
+```{r echo=FALSE}
 plot <- as.data.frame(table(nodes_intermediary$status))
 
 ggplot(plot, aes(x="", y = Freq, fill = Var1)) +
@@ -531,15 +572,17 @@ geom_bar(width = 1, stat = "identity") +
   theme(
     axis.text.x=element_blank())
 ```
-```{r}
+```{r echo=FALSE}
 kable(plot, col.names = c("Status", "Freq"))
 ```
 
+
 ### Number of Officers.
+
 
 Officers are real persons that own the entities or the intermediary firms.
 
-```{r}
+```{r echo=FALSE}
 data_table <- data %>%
   select(name, adm0_a3, n_off) %>%
   arrange(-n_off) %>%
@@ -552,22 +595,19 @@ kable(data_table, caption = "Countries with more number of Officers")
 In the following map we can see the distribution of the Officers all around the world.
 
 ```{r echo=FALSE}
-library(leaflet)
-
-
     #Configuring colours of the map
-    pal <- colorBin("Reds", domain = world_map$n_int, bins = c(0, 10, 20, 100, 200, 400, 700, 1000, Inf))
+    pal <- colorBin("Reds", domain = world_map$n_off, bins = c(0, 10, 20, 100, 200, 400, 700, 1000, Inf))
 
     #Interactive labels
     labels <- sprintf("<strong>%s</strong><br/>%g officers",
-                     world_map$name, world_map$n_int) %>% 
+                     world_map$name, world_map$n_off) %>% 
     lapply(htmltools::HTML)
 
     #Ploting the map thanks to https://rstudio.github.io/leaflet/
     leaflet(data = world_map) %>% 
       addTiles() %>%
       addPolygons(stroke = FALSE,
-                fillColor = ~pal(n_int), #Colours by number of cases
+                fillColor = ~pal(n_off), #Colours by number of cases
                 fillOpacity = 0.7,
                 highlight = highlightOptions( #Interactive Polygon
                     fillOpacity = 0.9,
@@ -578,7 +618,7 @@ library(leaflet)
                   textsize = "15px",
                   direction = "auto")) %>%
       addLegend(pal = pal, 
-              values = ~n_int, 
+              values = ~n_off, 
               opacity = 0.7, 
               title = "Cases by country",
               position = "bottomright") %>%
@@ -588,11 +628,15 @@ library(leaflet)
       setView(0,0,1)
 ```
 
+
 ###Total number of cases.
 
-This is just a sumatory of the last three maps.
 
-```{r}
+This is just a summation of the last three variables.
+
+**cases = n_int + n_ent + n_off**
+
+```{r echo=FALSE}
 data_table <- data %>%
   select(name, adm0_a3, cases) %>%
   arrange(-cases) %>%
@@ -603,11 +647,8 @@ kable(data_table, caption = "Countries with more number of cases")
 ```
 
 ```{r echo=FALSE}
-library(leaflet)
-
-
     #Configuring colours of the map
-    pal <- colorBin("Reds", domain = world_map$cases, bins = c(0, 50, 100, 500, 1000, 5000, 10000, 20000, Inf))
+    pal <- colorBin("RdPu", domain = world_map$cases, bins = c(0, 50, 100, 500, 1000, 5000, 10000, 20000, Inf))
 
     #Interactive labels
     labels <- sprintf("<strong>%s</strong><br/>%g cases",
@@ -639,23 +680,26 @@ library(leaflet)
       setView(0,0,1)
 ```
 
+
 Number of cases can induce wrong conclusions because it is logical than countries with more people has more cases.
 
+
 ###Cases / Population.
+
 
 In order to understand better the information, we create a new variable, `cases_pop` that has the result of:
 
 
-  ** cases_pop = cases * 10000000 / pop_est **
+**cases_pop = cases * 10000000 / pop_est**
 
 
-Small countries with medium number of cases maybe are more imbolved than big countries with a little more cases.
+Small countries with medium number of cases maybe are more involved than big countries with a little more cases.
 
-This value help us understand wich country is more imbolved by Panama Papers.
+This value helps us understand which country is more involved by Panama Papers.
 
-According with this new parameter the most affected countries are: 
+According with this new parameter the most affected countries are:
 
-```{r}
+```{r echo=FALSE}
 data_table <- data %>%
   select(name, adm0_a3, cases_pop) %>%
   arrange(-cases_pop) %>%
@@ -668,9 +712,6 @@ kable(data_table, caption = "Countries with more Cases / Population")
 This map show the distribution all around the world of the parameter.
 
 ```{r echo=FALSE}
-library(leaflet)
-
-
     #Configuring colours of the map
     pal <- colorBin("Blues", domain = world_map$cases_pop, bins = c(0, 10, 20, 100, 200, 500, 1000, 2000, Inf))
 
@@ -704,13 +745,15 @@ library(leaflet)
       setView(0,0,1)
 ```
 
+
 ##Conclusion
 
-If we take into acount just countries with more cases Hong Kong, Switzerland, China, Panama and Jersey are the most affected countries but as we see during the analisis `cases_pop` could be an interesting parameter as well for analise of this question.
+
+If we take into account just countries with more cases Hong Kong, Switzerland, China, Panama and Jersey are the most affected countries but as we see during the analysis `cases_pop` could be an interesting parameter as well for analyses of this question.
 
 According to `cases_pop`, British Virgin Is., Niue, Jersey, Guernsey and Monaco are the most affected countries.
 
-This make sense because we can see a lot of this countries in the **Top 10 tax havens** list of [Wikipedia](https://en.wikipedia.org/wiki/Tax_haven#Tax_haven_lists)
+This make sense because we can see a lot of this countries in the **Top 10 tax havens** list on [Wikipedia](https://en.wikipedia.org/wiki/Tax_haven#Tax_haven_lists)
 
  * Ireland
  * Netherlands
@@ -722,14 +765,20 @@ This make sense because we can see a lot of this countries in the **Top 10 tax h
  * Bermuda
  * Cayman Islands
  * British Virgin Islands
+ 
+ Panama was recently removed from this list.
 
-# **Second:** Developed countries are more imbollved in the Panama Papers than other countries?
 
-```{r eval=FALSE, include=FALSE}
+# **Second:** Are developed countries are more involved into the Panama Papers than other countries?
+
+
+##Analysis
+
+
+This is an interactive graphic that plot the GDP against some variables.
+
+```{r echo=TRUE, eval=FALSE, include=FALSE}
 #Grafico numero de casos gdp de cada pais
-
-
-library(shiny)
 
 # Define UI for application that plots features of movies
 ui <- fluidPage(
@@ -746,8 +795,7 @@ ui <- fluidPage(
                   choices = c("Number of Cases"   = "cases", 
                               "Number of Entities" = "n_ent", 
                               "Number of Intermediaries" = "n_int", 
-                              "Number of Officers" = "n_off",
-                              "Number of cases / population" = "cases_pop"), 
+                              "Number of Officers" = "n_off"), 
                   selected = "cases"),
       
       # Select variable for color
@@ -760,7 +808,7 @@ ui <- fluidPage(
     
     # Outputs
     mainPanel(
-      plotOutput(outputId = "scatterplot")
+      plotOutput(outputId = "plot")
     )
   )
 )
@@ -769,8 +817,8 @@ ui <- fluidPage(
 # Define server function required to create the scatterplot
 server <- function(input, output) {
   
-  # Create the scatterplot object the plotOutput function is expecting
-  output$scatterplot <- renderPlot({
+  # Create the plot object the plotOutput function is expecting
+  output$plot <- renderPlot({
     ggplot(data, aes_string(x = data$gdp_md_est, y = input$y, color = input$z, size = data$pop_est)) +
       geom_point()+
       theme_minimal()+
@@ -791,16 +839,88 @@ shinyApp(ui = ui, server = server)
   
 ```
 
+**Open it in an external view, we are not able to open it directly on this document.**
+
+**Open *./shiny.ggplot.Rmd***
+
+
 ##Conclusion
 
 
+As we see in the graphoc, there is an actual relationship between number of cases and GDP of the country but it is not very strong. 
+
+It is true than countries with higher GDP values trend to have higher number of cases but is it not always like that and there are a lot of countries outside this trend.
+
+
+# **Third:**
 
 ##Network
 
 
+```{r  eval=FALSE, include=FALSE}
+#Selecting usefu columns
+entity <- nodes_entity %>%
+  select(1) %>%
+  mutate(type = "entity")
+
+intermediary <- nodes_intermediary %>%
+  select(1) %>%
+  mutate(type = "intermediary")
+
+officer <- nodes_officer %>%
+  select(1) %>%
+  mutate(type = "officer")
+
+#Putting all together 
+nodes <- bind_rows(entity,intermediary,officer)
 
 
-*This inform was done for the "Data Management for Big Data" course from "Universit? degli studi di Trieste" year 2017-2018 by Jos? Agustin Spaccesi*
+#Cleaning memory
+rm(entity,intermediary,officer)
+
+edges_net <- edges %>%
+  filter(TYPE != "registered_address") %>%
+  select(START_ID, END_ID, TYPE) %>%
+  rename("type_edge" = "TYPE", "from" = "START_ID", "to" = "END_ID")
+
+nodes_net <- rename(nodes, "id" = "node_id", "type_node"= "type")
+
+rm(nodes_address, nodes_entity, nodes_intermediary, nodes_officer, edges, nodes)
+
+library(GGally)
+library(ggnetwork)
+library(network)
+
+net <- network(edges_net)
+
+#, vertex.attr = nodes_net, directed = TRUE
+
+ggnet2(net, size = 0.5, edge.alpha = 0.8, alpha = 0.75, edge.color = type_edge)
+
+#, color = type_node, edge.color = type_edge
+library(igraph)
+g <- graph_from_data_frame(edges_net, nodes_net, directed = TRUE)
+
+plot.igraph(g)
+#, vertices = nodes_net
+#library(ggplot2)
+#library(ggraph)
+
+#ggraph(g, layout = "with_kk") + 
+#  geom_edge_link(aes(alpha = type_edge)) + 
+#  geom_node_point(aes(color = type_node))
+
+#library(visNetwork)
+#g_vis <- toVisNetworkData(g)
+
+#visNetwork(nodes = g_vis$nodes, edges = g_vis$edges)
+
+```
+#Cosiderations
+
+Obviusly, this data set is made for build a network but with the resources and knowledge we have was imposible to build it.
+
+*This inform was done for the "Data Management for Big Data" course from "Universiti degli studi di Trieste" year 2017-2018 by Jose Agustin Spaccesi*
 
 
 

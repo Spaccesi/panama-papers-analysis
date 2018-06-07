@@ -14,7 +14,7 @@ knitr::opts_chunk$set(message = FALSE)
 knitr::opts_chunk$set(warning = FALSE)
 ```
 
-```{r  echo=FALSE}
+```{r}
 #Loading readr package
 library(readr)
 library(dplyr)
@@ -91,7 +91,7 @@ nodes_intermediary <- read_csv("panama_papers.nodes.intermediary.csv",  col_type
 world_map <- geojsonio::geojson_read("customworld.geo.json", what = "sp")
 ```
 
-```{r echo=FALSE}
+```{r}
 #Adding variables to the JSON file
 data <- world_map@data
 
