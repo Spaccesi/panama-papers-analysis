@@ -1,0 +1,250 @@
+---
+title: "Are developed countries more involved into the Panama Papers than other countries?"
+author: "Jose Agustin Spaccesi"
+date: "7 de junio de 2018"
+runtime: shiny
+output: 
+  html_document:
+   toc: true
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE)
+knitr::opts_chunk$set(message = FALSE)
+knitr::opts_chunk$set(warning = FALSE)
+```
+
+```{r  echo=FALSE}
+#Loading readr package
+library(readr)
+library(dplyr)
+
+#Importing Edges
+edges <- read_csv("panama_papers.edges.csv", col_types = cols(
+  START_ID = col_character(),
+  TYPE = col_factor(levels = c("intermediary_of", "officer_of", "registered_address")),
+  END_ID = col_character(),
+  link = col_character(),
+  start_date = col_date(format = "%d-%b-%Y"), #Example of date format: 04-OCT-1994
+  end_date = col_date(format = "%d-%b-%Y"),
+  sourceID = col_character(),
+  valid_until = col_character()
+  )
+)
+
+#Importing Nodes
+nodes_officer <- read_csv("panama_papers.nodes.officer.csv", col_types = cols(
+  node_id = col_character(),
+  name = col_character(),
+  country_codes = col_character(),
+  countries = col_character(),
+  sourceID = col_character(),
+  valid_until = col_character(),
+  note = col_character()
+  )
+)
+nodes_address <- read_csv("panama_papers.nodes.address.csv", col_types = cols(
+  node_id = col_character(),
+  name = col_character(),
+  address = col_character(),
+  country_codes = col_character(),
+  countries = col_character(),
+  sourceID = col_character(),
+  valid_until = col_character(),
+  note = col_character()
+  )
+)
+nodes_entity <- read_csv("panama_papers.nodes.entity.csv", col_types = cols(
+  node_id = col_character(),
+  name = col_character(),
+  jurisdiction = col_character(),
+  jurisdiction_description = col_character(),
+  country_codes = col_character(),
+  countries = col_character(),
+  incorporation_date = col_date(format = "%d-%b-%Y"),
+  inactivation_date = col_date(format = "%d-%b-%Y"),
+  struck_off_date = col_date(format = "%d-%b-%Y"),
+  closed_date = col_date(format = "%d-%b-%Y"),
+  ibcRUC = col_character(),
+  status = col_factor(levels = c("Active", "Shelf company", "Defaulted",  "Dissolved shelf company", "Trash company", "Changed agent", "Dissolved")),
+  company_type = col_character(),
+  service_provider = col_character(),
+  sourceID = col_character(),
+  valid_until = col_character(),
+  note = col_character()
+  )
+)
+nodes_intermediary <- read_csv("panama_papers.nodes.intermediary.csv",  col_types = cols(
+  node_id = col_character(),
+  name = col_character(),
+  country_codes = col_character(),
+  countries = col_character(),
+  status = col_factor(levels = c("ACTIVE", "SUSPENDED", "CLIENT IN REPRESENTATIVE TERRITORY", "DELINQUENT", "INACTIVE", "UNRECOVERABLE ACCOUNTS")),
+  sourceID = col_character(),
+  valid_until = col_character(),
+  note = col_character()
+  ) 
+)
+```
+```{r}
+#Importing map data thanks to https://geojson-maps.ash.ms/
+world_map <- geojsonio::geojson_read("customworld.geo.json", what = "sp")
+```
+
+```{r echo=FALSE}
+#Adding variables to the JSON file
+data <- world_map@data
+
+#Number of entities
+entity <- nodes_entity %>%
+  group_by(country_codes) %>%
+  summarise(n_ent = n()) %>%
+  na.omit()
+
+#Number of Officers
+officer <- nodes_officer %>%
+  group_by(country_codes) %>%
+  summarise(n_off = n()) %>%
+  na.omit()
+
+#Number of Intermediaries
+intermediary_all <- nodes_intermediary %>%
+  group_by(country_codes) %>%
+  summarise(n_int = n()) %>%
+  na.omit()
+
+#Intermediaries can be in different countries at the same time
+library(stringr)
+library(rebus)
+
+#Taking organizarions in two countries 
+pattern <- START %R% capture(one_or_more(WRD)) %R% ";" %R% capture(one_or_more(WRD)) %R% END #rebus package
+
+bad_countries <- as.data.frame(str_match(intermediary_all$country_codes, pattern = pattern))
+
+#Adding number
+bad_countries$n_int <- intermediary_all$n_int/2
+
+#Organizing the data set
+bad_1 <- bad_countries %>% #Countries in one side
+  select(2, 4) %>%
+  na.omit() %>%
+  group_by(V2) %>%
+  summarise(n_int = sum(n_int))
+
+bad_2 <- bad_countries %>% #In the other side
+  select(3, 4) %>%
+  na.omit() %>%
+  group_by(V3) %>%
+  summarise(n_int = sum(n_int))
+
+bad_countries <- full_join(bad_1, bad_2, by = c("V2" = "V3")) #Putting together
+
+rm(bad_1, bad_2) #Cleaning
+
+bad_countries[is.na(bad_countries)] <- 0 #Replacing NAs with 0s
+
+bad <- bad_countries %>%
+  mutate(n_int = n_int.x + n_int.y) %>%
+  rename("country" = V2) %>%
+  select(country , n_int) 
+
+rm(bad_countries)
+
+intermediary <- intermediary_all %>%
+  full_join(bad, by = c("country_codes" = "country"))
+
+intermediary[is.na(intermediary)] <- 0 #Replacing NAs with 0s
+
+intermediary_all <- intermediary %>%
+  mutate(n_int = n_int.x + n_int.y) %>%
+  select(country_codes, n_int)
+
+
+
+#JOINING data together
+data_join <- data %>%
+  left_join(entity, by = c("adm0_a3" = "country_codes")) %>%
+  left_join(officer, by = c("adm0_a3" = "country_codes")) %>%
+  left_join(intermediary_all, by = c("adm0_a3" = "country_codes"))
+
+rm(entity, officer, intermediary_all, intermediary)
+
+data_join[is.na(data_join)] <- 0
+
+data <- data_join %>%
+  mutate(cases = n_int + n_off + n_ent)
+  
+data$cases_pop <- data$cases/data$pop_est*10000000
+
+world_map@data <- data
+
+rm(data_join)
+
+```
+
+
+```{r}
+#Grafico numero de casos gdp de cada pais
+
+library(ggplot2)
+library(shiny)
+
+# Define UI for application that plots features of movies
+ui <- fluidPage(
+  
+  # Sidebar layout with a input and output definitions
+  sidebarLayout(
+    
+    # Inputs
+    sidebarPanel(
+      
+      # Select variable for y-axis
+      selectInput(inputId = "y", 
+                  label = "Y-axis:",
+                  choices = c("Number of Cases"   = "cases", 
+                              "Number of Entities" = "n_ent", 
+                              "Number of Intermediaries" = "n_int", 
+                              "Number of Officers" = "n_off"), 
+                  selected = "cases"),
+      
+      # Select variable for color
+      selectInput(inputId = "z", 
+                  label = "Color by:",
+                  choices = c("Continent" = "continent", 
+                              "Economy" = "economy"),
+                  selected = "continent")
+    ),
+    
+    # Outputs
+    mainPanel(
+      plotOutput(outputId = "scatterplot")
+    )
+  )
+)
+
+
+# Define server function required to create the scatterplot
+server <- function(input, output) {
+  
+  # Create the scatterplot object the plotOutput function is expecting
+  output$scatterplot <- renderPlot({
+    ggplot(data, aes_string(x = data$gdp_md_est, y = input$y, color = input$z, size = data$pop_est)) +
+      geom_point()+
+      theme_minimal()+
+      labs(
+        x = "GDP",
+        y = "",
+        title = "",
+        color = "Continent",
+        size = "Population"
+      )+
+      scale_x_log10()+
+      scale_y_log10()
+  })
+}
+
+# Create a Shiny app object
+shinyApp(ui = ui, server = server)
+  
+```
