@@ -2,6 +2,7 @@
 title: "Panama Papers Analisis"
 author: "Jose Agustin Spaccesi"
 date: "31 de mayo de 2018"
+#runtime: shiny
 output: 
   html_document:
    toc: true
@@ -15,9 +16,9 @@ knitr::opts_chunk$set(warning = FALSE)
 
 # Panama Paperes
 
-The Panama Papers are 11.5 million leaked documents that detail financial and attorney–client information for 213.634 offshore entities.The documents, were created by, and taken from, Panamanian law firm and corporate service provider Mossack Fonseca, and were leaked in 2015 by an anonymous source.
+The Panama Papers are 11.5 million leaked documents that detail financial and attorney-client information for 213.634 offshore entities.The documents, were created by, and taken from, Panamanian law firm and corporate service provider Mossack Fonseca, and were leaked in 2015 by an anonymous source.
 
-Those involved contracted with the law firm, Mossack Fonseca, consultants for companies, services consisting in founding and establishing companies registered in a tax haven in such a way that they fulfilled the primary objective of hiding the identity of the owners. (Los implicados contrataban con el bufete de abogados consultores de empresas, Mossack Fonseca, servicios consistentes en fundar y establecer compañ??as inscritas en un para??so fiscal de modo tal que cumpliesen con el objetivo primario de «ocultar la identidad de los propietarios»)
+Those involved contracted with the law firm, Mossack Fonseca, consultants for companies, services consisting in founding and establishing companies registered in a tax haven in such a way that they fulfilled the primary objective of hiding the identity of the owners. (Los implicados contrataban con el bufete de abogados consultores de empresas, Mossack Fonseca, servicios consistentes en fundar y establecer compa???as inscritas en un para??so fiscal de modo tal que cumpliesen con el objetivo primario de ?ocultar la identidad de los propietarios?)
 
 The total size of the archives is about 2,6 TeraBytes.
 
@@ -73,7 +74,7 @@ edges <- read_csv("panama_papers.edges.csv", col_types = cols(
   TYPE = col_factor(levels = c("intermediary_of", "officer_of", "registered_address")),
   END_ID = col_character(),
   link = col_character(),
-  start_date = col_date(format = "%d-%b-%Y"),
+  start_date = col_date(format = "%d-%b-%Y"), #Example of date format: 04-OCT-1994
   end_date = col_date(format = "%d-%b-%Y"),
   sourceID = col_character(),
   valid_until = col_character()
@@ -156,88 +157,15 @@ As we see, this data frame has 8 variables and 674.102 observations. Variables a
 
 * `START_ID` is an **character** that show, using a code number, the starting node of the tides between two nodes of different type.
 * `TYPE` is a **factor** that show the type of conection between the nodes. Possible values are "intermediary_of", "officer_of" and "registered_address".
-* `END_ID` is an **character** that show, using a code number, the ending node of the tides between two nodes.
+* `END_ID` is an **character** that show, using a code number, the ending node of the tides between two nodes of different type.
 * `link` is a **character** that describe the type of relationship between the nodes in a deep way.
 * `start_date` starting **date** of the relationship. Most of the times is missing.
 * `end_date` ending **date** of the relationship. Most of the times is missing.
 * `sourceID` in this files the source is always *"Panama Papers"*.
-* `valid_until` 
+* `valid_until` we do not know the meaning of this variable.
 
-Using this file we obtained information about the frequency that any node appear.
-
-```{r}
-
-end_node <- edges %>%  
-  count(END_ID) %>%
-  rename(node_id = END_ID)
-  
-start_node <- edges %>%  
-  count(START_ID) %>%
-  rename(node_id = START_ID)
-
-freq <- end_node %>%
-  full_join(start_node, by = "node_id")
-
-rm(start_node, end_node)
-
-freq[is.na(freq)] <- 0
-  
-freq_ready <- freq %>%
-  mutate(freq = n.x + n.y) %>%
-  select(node_id , freq) %>%
-  arrange(desc(freq))
-
-rm(freq)
-
-edges2 <- edges %>%
-  select(1,3)
-```
 
 ##Nodes
-
-We combine all nodes data sets into one, keeping only useful variables using **dplyr** package.
-
-```{r}
-#Selecting usefu columns
-entity <- nodes_entity %>%
-  select(1,2,5) %>%
-  mutate(type = "entity")
-
-intermediary <- nodes_intermediary %>%
-  select(1:3) %>%
-  mutate(type = "intermediary")
-
-officer <- nodes_officer %>%
-  select(1:3) %>%
-  mutate(type = "officer")
-
-adress <- nodes_address %>%
-  select(1,2,4) %>%
-  mutate(type = "adress")
-
-#Putting all together 
-nodes <- bind_rows(entity,intermediary,officer,adress)
-
-#Cleaning memory
-rm(entity,intermediary,officer,adress)
-
-#JOINING information of nodes
-nodes_freq <- freq_ready %>%
-  inner_join(nodes, by = "node_id")
-
-#Information for the map by country
-country_freq <- nodes_freq %>%
-  group_by(country_codes) %>%
-  summarise(sum = sum(freq)) %>%
-  rename(ISO3 = country_codes)
-
-```
-
-```{r}
-glimpse(nodes)
-```
-
-On the other hand, any nodes type has its owns atributes as we will see in the following part.
 
 ###Entity Nodes
 
@@ -251,27 +179,27 @@ The file is composed by 213.634 observations and 17 variables.
 
 Variables are:
 
-* `node_id` is a **character** that has the numeric code that identify unequibocaly the node. `node_id` is the **key** of the Entity.
+* `node_id` is a **character** that has a numeric code that identify unequibocaly the node. `node_id` is the **key** of the Entity.
 * `name` is a **character** that has the name of the entity.
-* `jurisdiction` is a **character**
-* `jurisdiction_description`is a **character**
+* `jurisdiction` is a **character** with the code of the country where the entity has jurisdiction. The code is composed by three letters.
+* `jurisdiction_description`is a **character** that has the name of the country where the entity has jurisdiction.
 * `country_codes` is a **character** that contain the code of the country where the entity is located. The code is composed by three letters.
 * `countries`is a **character** that has the name of the country where the entity is located.
 * `incorporation_date` incorporation **date** of the entity node.
 * `inactivation_date` inactivation **date** of the entity node.
 * `struck_off_date` struck off **date** of the entity node.
 * `closed_date` closed **date** of the entity node.
-* `ibcRUC`
+* `ibcRUC` we do not know the meaning of this variable.
 * `status` is a **factor** that show the actual stauts of the Entity. Possible values are "Active", "Shelf company", "Defaulted",  "Dissolved shelf company", "Trash company", "Changed agent" and "Dissolved".
-* `company_type`
+* `company_type` the data of this variable is missing.
 * `service_provider` the original file was taken from Mossack Fonseca, so the value of this variable is alwas a **character** "Mossack Fonseca"
 * `sourceID` in this files the source is always *"Panama Papers"*.
-* `valid_until`
-* `note`
+* `valid_until` we do not know the meaning of this variable.
+* `note` possible notes.
 
 ###Adresses
 
-This file containe information about know adresses of the nodes.
+This file containe information about the known adresses of the nodes.
 
 ```{r}
 glimpse(nodes_address)
@@ -282,16 +210,17 @@ This file is composed by 93.454 observations and 8 variables.
 Variables are:
 
 * `node_id` is a **character** that has the numeric code that identify unequibocaly the node. `node_id` is the **key** of the Entity.
-* `name` is a **character** that has the name of the adress.
-* `address`
-* `country_codes` 
-* `countries`
+* `name` missing variable.
+* `address` is a **character** with the adress of the node.
+* `country_codes` is a **character** that contain the code of the country where the adress is located. The code is composed by three letters.
+* `countries`is a **character** that has the name of the country where the adress is located.
 * `sourceID` in this files the source is always *"Panama Papers"*.
-* `valid_until`
-* `note`
+* `valid_until` we do not know the meaning of this variable.
+* `note` possible notes.
 
 ###Officer Nodes
 
+This file has information about the officers of the companies, such us, stakeholders, owners, directors, etc.
 
 ```{r}
 glimpse(nodes_officer)
@@ -303,15 +232,15 @@ Variables are:
 
 * `node_id` is a **character** that has the numeric code that identify unequibocaly the node. `node_id` is the **key** of the Entity.
 * `name` is a **character** that has the name of the officer.
-* `country_codes` is a **character** that contain the code of the country where the office is located. The code is composed by three letters.
-* `countries` is a **character** that has the name of the country where the office is located.
+* `country_codes` is a **character** that contain the code of the country where the officer is located. The code is composed by three letters.
+* `countries` is a **character** that has the name of the country where the officer is located.
 * `sourceID` in this files the source is always *"Panama Papers"*.
-* `valid_until`
-* `note`
+* `valid_until` we do not know the meaning of this variable.
+* `note` possible notes.
 
 ###Intermediary Nodes
 
- 
+This file has information about the intermediaries that 
 
 ```{r}
 glimpse(nodes_intermediary)
@@ -322,65 +251,19 @@ Variables are:
 
 * `node_id` is a **character** that has the numeric code that identify unequibocaly the node. `node_id` is the **key** of the Entity.
 * `name` is a **character** that has the name of the intermediary.
-* `country_codes` is a **character** that contain the code of the country where the intermediary is located. The code is composed by three letters.
+* `country_codes` is a **character** that contain the code of the country where the intermediary is located. The code is composed by three letters. 
 * `countries` is a **character** that has the name of the country where the intermediary is located.
 * `status` is a **factor** that show the actual status of the intermediary. Posible values are "ACTIVE", "SUSPENDED", "CLIENT IN REPRESENTATIVE TERRITORY", "DELINQUENT", "INACTIVE" and "UNRECOVERABLE ACCOUNTS".
 * `sourceID` in this files the source is always *"Panama Papers"*.
-* `valid_until`
-* `note`
+* `valid_until` we do not know the meaning of this variable.
+* `note` possible notes.
 
 Intermediaries are companies that NEXOS DE UNION ENTRE OTRAS COMPANIAS that means there are in two countries. That is why sometimes intermediaries are between two countries. This is not good for our analysis, so using **dplyr**, **stringr** and **rebus** packages we add half of the number of intermediaries to each country
-
-```{r}
-library(stringr)
-library(rebus)
-
-#Taking organizarions in two countries 
-pattern <- START %R% capture(one_or_more(WRD)) %R% ";" %R% capture(one_or_more(WRD)) %R% END #rebus package
-bad_countries <- as.data.frame(str_match(country_freq$ISO3, pattern = pattern))
-rm(pattern)
-
-#Adding number
-bad_countries$sum <- country_freq$sum/2
-
-#Organizing the data set
-bad_1 <- bad_countries %>% #Countries in one side
-  select(2, 4) %>%
-  na.omit() %>%
-  group_by(V2) %>%
-  summarise(sum = sum(sum))
-
-bad_2 <- bad_countries %>% #In the other side
-  select(3, 4) %>%
-  na.omit() %>%
-  group_by(V3) %>%
-  summarise(sum = sum(sum))
-
-bad_countries <- full_join(bad_1, bad_2, by = c("V2"="V3")) #Putting together
-
-rm(bad_1, bad_2) #Deleting intermediary variables
-
-bad_countries[is.na(bad_countries)] <- 0 #Replacing NAs with 0s
-
-bad <- bad_countries %>%
-  mutate(freq = sum.x + sum.y) %>%
-  rename("node_id"=V2) %>%
-  select(node_id , freq) 
-
-rm(bad_countries)
-
-```
-
-```{r echo = FALSE}
-#Cleaning memory
-rm(nodes_address,nodes_entity,nodes_intermediary,nodes_officer)
-rm(edges, nodes)
-```
 
 ##GeoJSON
 
 This file contain all the necesary information for plot an interactive map plus demografic information, such as, population or GDP of every country.
-It has a very complicated structure so we are just going to display the structure of the data of each country.
+It has a very complicated structure so we are just going to display the structure of the data of each country (not the polygons).
 
 ```{r echo=FALSE}
 glimpse(world_map@data)
@@ -388,114 +271,536 @@ glimpse(world_map@data)
 
 Still it is to much for explain every variable, thats why we are just going to define the columns we will use in the future.
 
-* `adm0_a3`
-* `pop_est`
-* `gdp_md_est`
-* `economy` 
-* `iso_a3`
-* `continent`
+* `pop_est` is a **integer** with the estimate population of the country.
+* `name` is a **factor** with the name of the country.
+* `gdp_md_est` **is a double** with the estimate gdp of the country.
+* `economy` is a **factor** with classify the country according with economic reasons.
+* `iso_a3` is a **factor** that contain the code of the country. The code is composed by three letters.
+* `continent` is a **factor** with the continent that the country bellong.
 
-#Analisis
+```{r echo=FALSE}
+#Adding variables to the JSON file
+data <- world_map@data
+
+#Number of entities
+entity <- nodes_entity %>%
+  group_by(country_codes) %>%
+  summarise(n_ent = n()) %>%
+  na.omit()
+
+#Number of Officers
+officer <- nodes_officer %>%
+  group_by(country_codes) %>%
+  summarise(n_off = n()) %>%
+  na.omit()
+
+#Number of Intermediaries
+intermediary_all <- nodes_intermediary %>%
+  group_by(country_codes) %>%
+  summarise(n_int = n()) %>%
+  na.omit()
+
+#Intermediaries can be in different countries at the same time
+library(stringr)
+library(rebus)
+
+#Taking organizarions in two countries 
+pattern <- START %R% capture(one_or_more(WRD)) %R% ";" %R% capture(one_or_more(WRD)) %R% END #rebus package
+
+bad_countries <- as.data.frame(str_match(intermediary_all$country_codes, pattern = pattern))
+
+#Adding number
+bad_countries$n_int <- intermediary_all$n_int/2
+
+#Organizing the data set
+bad_1 <- bad_countries %>% #Countries in one side
+  select(2, 4) %>%
+  na.omit() %>%
+  group_by(V2) %>%
+  summarise(n_int = sum(n_int))
+
+bad_2 <- bad_countries %>% #In the other side
+  select(3, 4) %>%
+  na.omit() %>%
+  group_by(V3) %>%
+  summarise(n_int = sum(n_int))
+
+bad_countries <- full_join(bad_1, bad_2, by = c("V2" = "V3")) #Putting together
+
+rm(bad_1, bad_2) #Cleaning
+
+bad_countries[is.na(bad_countries)] <- 0 #Replacing NAs with 0s
+
+bad <- bad_countries %>%
+  mutate(n_int = n_int.x + n_int.y) %>%
+  rename("country" = V2) %>%
+  select(country , n_int) 
+
+rm(bad_countries)
+
+intermediary <- intermediary_all %>%
+  full_join(bad, by = c("country_codes" = "country"))
+
+intermediary[is.na(intermediary)] <- 0 #Replacing NAs with 0s
+
+intermediary_all <- intermediary %>%
+  mutate(n_int = n_int.x + n_int.y) %>%
+  select(country_codes, n_int)
+
+
+
+#JOINING data together
+data_join <- data %>%
+  left_join(entity, by = c("adm0_a3" = "country_codes")) %>%
+  left_join(officer, by = c("adm0_a3" = "country_codes")) %>%
+  left_join(intermediary_all, by = c("adm0_a3" = "country_codes"))
+
+rm(entity, officer, intermediary_all, intermediary)
+
+data_join[is.na(data_join)] <- 0
+
+data <- data_join %>%
+  mutate(cases = n_int + n_off + n_ent)
+  
+data$cases_pop <- data$cases/data$pop_est*10000000
+
+world_map@data <- data
+
+rm(data_join, pattern, bad)
+
+```
+
+#Analisis Questions
 
 Questions why will try to answer in this project:
 
-* Which is the country with more offshore companies according to Panama Papers?
-* Which are the most important nodes of the Panama Papers network?
-* panama papers as an idicator of corrupcion by counrty. 
+* **First:** Which is the country with more imbolved in the Panama Papers?
+* **Second:** Developed countries are more imbollved in the Panama Papers than other countries?
+* **Third:** 
 
+# **First:** Which is the country with more imbolved in the Panama Papers?
 
+First of all we will analise the nodes type one by one, country by country.
 
+###Number of Entities.
 
-## Interactive map
+Entities are maybe the most interesting "Entity" in this data set. The countries with more entities are Hong Kong, Switzerland, Panama, Jersey and Luxembourg, as we see in the following table.
+
+```{r}
+data_table <- data %>%
+  select(name, adm0_a3, n_ent) %>%
+  arrange(-n_ent) %>%
+  top_n(5) %>%
+  rename("Country" = name, "Code" = adm0_a3, "Number of Entities" = n_ent)
+  
+kable(data_table, caption = "Countries with more number of Entities")
+```
+
+In the following map we can see the distribution of the Entities all around the world.
 
 ```{r echo=FALSE}
-library(shiny)
 library(leaflet)
 
 
+    #Configuring colours of the map
+    pal <- colorBin("Oranges", domain = world_map$n_ent, bins = c(0, 10, 20, 100, 200, 500, 1000, 2000, Inf))
 
-#JOINING data of PANAMA PAPERS
-data_from_json <- world_map@data
-data_join <- left_join(data_from_json, country_freq, by = c("adm0_a3"="ISO3"))
+    #Interactive labels
+    labels <- sprintf("<strong>%s</strong><br/>%g entities",
+                     world_map$name, world_map$n_ent) %>% 
+    lapply(htmltools::HTML)
 
-data_join$sum[is.na(data_join$sum)] <- 0
-
-world_map@data <- data_join
-
-#Configuring colours of the map
-bins <- c(0, 50, 100, 1000, 2000, 5000, 10000, 20000, Inf)
-pal <- colorBin("PuBu", domain = world_map$sum, bins = bins)
-
-#Interactive labels
-labels <- sprintf("<strong>%s</strong><br/>%g casos",
-                  world_map$name, world_map$sum) %>% 
-  lapply(htmltools::HTML)
-
-#Ploting the map thanks to https://rstudio.github.io/leaflet/
-leaflet(data = world_map) %>% 
-  addTiles() %>%
-  addPolygons(stroke = FALSE,
-              fillColor = ~pal(sum), #Colours by number of cases
-              fillOpacity = 0.7,
-              highlight = highlightOptions( #Interactive Polygon
-                fillOpacity = 0.9,
-                bringToFront = TRUE),
-              label = labels, #Interactive labels
-              labelOptions = labelOptions( #Labels Options
-                style = list("font-weight" = "normal", padding = "3px 8px"),
-                textsize = "15px",
-                direction = "auto")) %>%
-  addLegend(pal = pal, 
-            values = ~sum, 
-            opacity = 0.7, 
-            title = "Cases by country",
-            position = "bottomright") %>%
-  addEasyButton(easyButton( #Default View button
-    icon="fa-globe", title="Default View",
-    onClick=JS("function(btn, map){ map.setZoom(1); }"))) %>%
-  setView(0,0,1)
-
+    #Ploting the map thanks to https://rstudio.github.io/leaflet/
+    leaflet(data = world_map) %>% 
+      addTiles() %>%
+      addPolygons(stroke = FALSE,
+                fillColor = ~pal(n_ent), #Colours by number of cases
+                fillOpacity = 0.7,
+                highlight = highlightOptions( #Interactive Polygon
+                    fillOpacity = 0.9,
+                    bringToFront = TRUE),
+                label = labels, #Interactive labels
+                labelOptions = labelOptions( #Labels Options
+                  style = list("font-weight" = "normal", padding = "3px 8px"),
+                  textsize = "15px",
+                  direction = "auto")) %>%
+      addLegend(pal = pal, 
+              values = ~n_ent, 
+              opacity = 0.7, 
+              title = "Cases by country",
+              position = "bottomright") %>%
+      addEasyButton(easyButton( #Default View button
+          icon="fa-globe", title="Default View",
+          onClick=JS("function(btn, map){ map.setZoom(1); }"))) %>%
+      setView(0,0,1)
 ```
 
-## Alcance de los papeles
+In the following char we can see the distribution of entities by the status.
 
-As we see on the map, basically all the world is embolled in the Panama papers. the following table show the countries with the most number of cases.
+```{r}
+library(ggplot2)
+plot <- as.data.frame(table(nodes_entity$status))
+
+ggplot(plot, aes(x="", y = Freq, fill = Var1)) +
+geom_bar(width = 1, stat = "identity") +
+  coord_polar("y", start=0) +
+  theme_minimal() +
+  labs(
+    x = " ",
+    y = " ",
+    fill = "Status",
+    title = "") +
+  theme(
+    axis.text.x=element_blank())
+```
+
+As we can see, most of the entities are in Defaulted status and more the 25% are still Active.
+
+```{r}
+kable(plot, col.names = c("Status", "Freq"))
+```
+
+### Number of Intermediaries.
+
+As we see in the following table, the countries with more number of Intermediaries are Hong Kong, United Kingdom, Switzerland, United States and Panama. The number is double beacause an Intermediary can be two different countries at the same time.
+
+```{r}
+data_table <- data %>%
+  select(name, adm0_a3, n_int) %>%
+  arrange(-n_int) %>%
+  top_n(5) %>%
+  rename("Country" = name, "Code" = adm0_a3, "Number of Intermediaries" = n_int)
+  
+kable(data_table, caption = "Countries with more number of Intermediaries")
+```
+
+In the following map we can see the distribution of the Intermediaries all around the world.
 
 ```{r echo=FALSE}
-#Tabla con los paises con mas casos
-kable(data.frame(Type = c("E-mail", "Data base", "PDF", "Image", "Text Document", "Other"), Quantity = c("480.461.817", "304.730.617", "215.426.417", "111.702.617", "32.916.617", "2.242")),caption = "Composed of: ")
+library(leaflet)
+
+
+    #Configuring colours of the map
+    pal <- colorBin("YlGn", domain = world_map$n_int, bins = c(0, 10, 20, 100, 200, 400, 700, 1000, Inf))
+
+    #Interactive labels
+    labels <- sprintf("<strong>%s</strong><br/>%g intermediaries",
+                     world_map$name, world_map$n_int) %>% 
+    lapply(htmltools::HTML)
+
+    #Ploting the map thanks to https://rstudio.github.io/leaflet/
+    leaflet(data = world_map) %>% 
+      addTiles() %>%
+      addPolygons(stroke = FALSE,
+                fillColor = ~pal(n_int), #Colours by number of cases
+                fillOpacity = 0.7,
+                highlight = highlightOptions( #Interactive Polygon
+                    fillOpacity = 0.9,
+                    bringToFront = TRUE),
+                label = labels, #Interactive labels
+                labelOptions = labelOptions( #Labels Options
+                  style = list("font-weight" = "normal", padding = "3px 8px"),
+                  textsize = "15px",
+                  direction = "auto")) %>%
+      addLegend(pal = pal, 
+              values = ~n_int, 
+              opacity = 0.7, 
+              title = "Cases by country",
+              position = "bottomright") %>%
+      addEasyButton(easyButton( #Default View button
+          icon="fa-globe", title="Default View",
+          onClick=JS("function(btn, map){ map.setZoom(1); }"))) %>%
+      setView(0,0,1)
 ```
 
-Of course is not right to speak about number of cases if we do not consider how many people us leving in the country. 
+In the following char we can see the distribution of inermediaries by the status.
 
-```{r echo = FALSE}
-#Tabla con indice casos/poblacion
-kable(data.frame(Type = c("E-mail", "Data base", "PDF", "Image", "Text Document", "Other"), Quantity = c("480.461.817", "304.730.617", "215.426.417", "111.702.617", "32.916.617", "2.242")),caption = "Composed of: ")
-```
-
-As we see, 
-
-```{r echo=FALSE} 
-#Grafico numero de casos gdp de cada pais
+```{r}
 library(ggplot2)
+plot <- as.data.frame(table(nodes_intermediary$status))
 
-#ggplot(data, aes(x = gdp, y = n_cases, color = continent, size = population)) +
-#  geom_point()+
-#  theme_minimal()+
-#  labs(
-#    x = "GDP",
-#    y = "",
-#    caption = "",
-#    title = ""
-#  )
+ggplot(plot, aes(x="", y = Freq, fill = Var1)) +
+geom_bar(width = 1, stat = "identity") +
+  coord_polar("y", start=0) +
+  theme_minimal() +
+  labs(
+    x = " ",
+    y = " ",
+    fill = "Status",
+    title = "Distribution of Intermediaries by status") +
+  theme(
+    axis.text.x=element_blank())
+```
+```{r}
+kable(plot, col.names = c("Status", "Freq"))
+```
+
+### Number of Officers.
+
+Officers are real persons that own the entities or the intermediary firms.
+
+```{r}
+data_table <- data %>%
+  select(name, adm0_a3, n_off) %>%
+  arrange(-n_off) %>%
+  top_n(5) %>%
+  rename("Country" = name, "Code" = adm0_a3, "Number of Officers" = n_off)
   
+kable(data_table, caption = "Countries with more number of Officers")
+```
+
+In the following map we can see the distribution of the Officers all around the world.
+
+```{r echo=FALSE}
+library(leaflet)
+
+
+    #Configuring colours of the map
+    pal <- colorBin("Reds", domain = world_map$n_int, bins = c(0, 10, 20, 100, 200, 400, 700, 1000, Inf))
+
+    #Interactive labels
+    labels <- sprintf("<strong>%s</strong><br/>%g officers",
+                     world_map$name, world_map$n_int) %>% 
+    lapply(htmltools::HTML)
+
+    #Ploting the map thanks to https://rstudio.github.io/leaflet/
+    leaflet(data = world_map) %>% 
+      addTiles() %>%
+      addPolygons(stroke = FALSE,
+                fillColor = ~pal(n_int), #Colours by number of cases
+                fillOpacity = 0.7,
+                highlight = highlightOptions( #Interactive Polygon
+                    fillOpacity = 0.9,
+                    bringToFront = TRUE),
+                label = labels, #Interactive labels
+                labelOptions = labelOptions( #Labels Options
+                  style = list("font-weight" = "normal", padding = "3px 8px"),
+                  textsize = "15px",
+                  direction = "auto")) %>%
+      addLegend(pal = pal, 
+              values = ~n_int, 
+              opacity = 0.7, 
+              title = "Cases by country",
+              position = "bottomright") %>%
+      addEasyButton(easyButton( #Default View button
+          icon="fa-globe", title="Default View",
+          onClick=JS("function(btn, map){ map.setZoom(1); }"))) %>%
+      setView(0,0,1)
+```
+
+###Total number of cases.
+
+This is just a sumatory of the last three maps.
+
+```{r}
+data_table <- data %>%
+  select(name, adm0_a3, cases) %>%
+  arrange(-cases) %>%
+  top_n(5) %>%
+  rename("Country" = name, "Code" = adm0_a3, "Number of cases" = cases)
+  
+kable(data_table, caption = "Countries with more number of cases")
+```
+
+```{r echo=FALSE}
+library(leaflet)
+
+
+    #Configuring colours of the map
+    pal <- colorBin("Reds", domain = world_map$cases, bins = c(0, 50, 100, 500, 1000, 5000, 10000, 20000, Inf))
+
+    #Interactive labels
+    labels <- sprintf("<strong>%s</strong><br/>%g cases",
+                     world_map$name, world_map$cases) %>% 
+    lapply(htmltools::HTML)
+
+    #Ploting the map thanks to https://rstudio.github.io/leaflet/
+    leaflet(data = world_map) %>% 
+      addTiles() %>%
+      addPolygons(stroke = FALSE,
+                fillColor = ~pal(cases), #Colours by number of cases
+                fillOpacity = 0.7,
+                highlight = highlightOptions( #Interactive Polygon
+                    fillOpacity = 0.9,
+                    bringToFront = TRUE),
+                label = labels, #Interactive labels
+                labelOptions = labelOptions( #Labels Options
+                  style = list("font-weight" = "normal", padding = "3px 8px"),
+                  textsize = "15px",
+                  direction = "auto")) %>%
+      addLegend(pal = pal, 
+              values = ~cases, 
+              opacity = 0.7, 
+              title = "Cases by country",
+              position = "bottomright") %>%
+      addEasyButton(easyButton( #Default View button
+          icon="fa-globe", title="Default View",
+          onClick=JS("function(btn, map){ map.setZoom(1); }"))) %>%
+      setView(0,0,1)
+```
+
+Number of cases can induce wrong conclusions because it is logical than countries with more people has more cases.
+
+###Cases / Population.
+
+In order to understand better the information, we create a new variable, `cases_pop` that has the result of:
+
+
+  ** cases_pop = cases * 10000000 / pop_est **
+
+
+Small countries with medium number of cases maybe are more imbolved than big countries with a little more cases.
+
+This value help us understand wich country is more imbolved by Panama Papers.
+
+According with this new parameter the most affected countries are: 
+
+```{r}
+data_table <- data %>%
+  select(name, adm0_a3, cases_pop) %>%
+  arrange(-cases_pop) %>%
+  top_n(5) %>%
+  rename("Country" = name, "Code" = adm0_a3, "Cases / Population" = cases_pop)
+  
+kable(data_table, caption = "Countries with more Cases / Population")
+```
+
+This map show the distribution all around the world of the parameter.
+
+```{r echo=FALSE}
+library(leaflet)
+
+
+    #Configuring colours of the map
+    pal <- colorBin("Blues", domain = world_map$cases_pop, bins = c(0, 10, 20, 100, 200, 500, 1000, 2000, Inf))
+
+    #Interactive labels
+    labels <- sprintf("<strong>%s</strong><br/>%g cases*10(7) / people",
+                     world_map$name, world_map$cases_pop) %>% 
+    lapply(htmltools::HTML)
+
+    #Ploting the map thanks to https://rstudio.github.io/leaflet/
+    leaflet(data = world_map) %>% 
+      addTiles() %>%
+      addPolygons(stroke = FALSE,
+                fillColor = ~pal(cases_pop), #Colours by number of cases
+                fillOpacity = 0.7,
+                highlight = highlightOptions( #Interactive Polygon
+                    fillOpacity = 0.9,
+                    bringToFront = TRUE),
+                label = labels, #Interactive labels
+                labelOptions = labelOptions( #Labels Options
+                  style = list("font-weight" = "normal", padding = "3px 8px"),
+                  textsize = "15px",
+                  direction = "auto")) %>%
+      addLegend(pal = pal, 
+              values = ~cases_pop, 
+              opacity = 0.7, 
+              title = "Cases by country",
+              position = "bottomright") %>%
+      addEasyButton(easyButton( #Default View button
+          icon="fa-globe", title="Default View",
+          onClick=JS("function(btn, map){ map.setZoom(1); }"))) %>%
+      setView(0,0,1)
+```
+
+##Conclusion
+
+If we take into acount just countries with more cases Hong Kong, Switzerland, China, Panama and Jersey are the most affected countries but as we see during the analisis `cases_pop` could be an interesting parameter as well for analise of this question.
+
+According to `cases_pop`, British Virgin Is., Niue, Jersey, Guernsey and Monaco are the most affected countries.
+
+This make sense because we can see a lot of this countries in the **Top 10 tax havens** list of [Wikipedia](https://en.wikipedia.org/wiki/Tax_haven#Tax_haven_lists)
+
+ * Ireland
+ * Netherlands
+ * United Kingdom
+ * Singapore
+ * Switzerland
+ * Luxembourg
+ * Hong Kong
+ * Bermuda
+ * Cayman Islands
+ * British Virgin Islands
+
+# **Second:** Developed countries are more imbollved in the Panama Papers than other countries?
+
+```{r eval=FALSE, include=FALSE}
+#Grafico numero de casos gdp de cada pais
+
+
+library(shiny)
+
+# Define UI for application that plots features of movies
+ui <- fluidPage(
+  
+  # Sidebar layout with a input and output definitions
+  sidebarLayout(
+    
+    # Inputs
+    sidebarPanel(
+      
+      # Select variable for y-axis
+      selectInput(inputId = "y", 
+                  label = "Y-axis:",
+                  choices = c("Number of Cases"   = "cases", 
+                              "Number of Entities" = "n_ent", 
+                              "Number of Intermediaries" = "n_int", 
+                              "Number of Officers" = "n_off",
+                              "Number of cases / population" = "cases_pop"), 
+                  selected = "cases"),
+      
+      # Select variable for color
+      selectInput(inputId = "z", 
+                  label = "Color by:",
+                  choices = c("Continent" = "continent", 
+                              "Economy" = "economy"),
+                  selected = "continent")
+    ),
+    
+    # Outputs
+    mainPanel(
+      plotOutput(outputId = "scatterplot")
+    )
+  )
+)
+
+
+# Define server function required to create the scatterplot
+server <- function(input, output) {
+  
+  # Create the scatterplot object the plotOutput function is expecting
+  output$scatterplot <- renderPlot({
+    ggplot(data, aes_string(x = data$gdp_md_est, y = input$y, color = input$z, size = data$pop_est)) +
+      geom_point()+
+      theme_minimal()+
+      labs(
+        x = "GDP",
+        y = "",
+        title = "",
+        color = "Continent",
+        size = "Population"
+      )+
+      scale_x_log10()+
+      scale_y_log10()
+  })
+}
+
+# Create a Shiny app object
+shinyApp(ui = ui, server = server)
   
 ```
 
+##Conclusion
 
 
-##Interactive Network
+
+##Network
+
+
 
 
 *This inform was done for the "Data Management for Big Data" course from "Universit? degli studi di Trieste" year 2017-2018 by Jos? Agustin Spaccesi*
+
+
 
