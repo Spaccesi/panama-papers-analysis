@@ -15,14 +15,14 @@ knitr::opts_chunk$set(warning = FALSE)
 ```
 
 ```{r echo = FALSE, message = FALSE, warning = FALSE}
-library(knitr) #Tablas e imagenes
-library(readr) #Importar
-library(dplyr) #Ordenar
-library(stringr) #Tratar strings
-library(rebus) #El patron
-library(leaflet) #Mapas
-library(ggplot2) #Graficos
-#library(shiny) #Interactividad
+require(knitr) #Tablas e imagenes
+require(readr) #Importar
+require(dplyr) #Ordenar
+require(stringr) #Tratar strings
+require(rebus) #El patron
+require(leaflet) #Mapas
+require(ggplot2) #Graficos
+#require(shiny) #Interactividad
 ```
 
 
@@ -424,6 +424,9 @@ Questions why will try to answer in this project:
 First of all, we will analyses the nodes type one by one, country by country.
 
 
+##Analysis
+
+
 ###Number of Entities.
 
 
@@ -572,6 +575,9 @@ geom_bar(width = 1, stat = "identity") +
   theme(
     axis.text.x=element_blank())
 ```
+
+As we see, more than 50% of the Intermediaries are still ACTIVE and only 21 of them are considerate DELINQUENT.
+
 ```{r echo=FALSE}
 kable(plot, col.names = c("Status", "Freq"))
 ```
@@ -777,7 +783,12 @@ This make sense because we can see a lot of this countries in the **Top 10 tax h
 
 This is an interactive graphic that plot the GDP against some variables.
 
-```{r echo=TRUE, eval=FALSE, include=FALSE}
+
+**Open it in an external view, we are not able to open it directly on this document.**
+
+**Open *./shiny.ggplot.Rmd***
+
+```{r echo=TRUE, eval=FALSE}
 #Grafico numero de casos gdp de cada pais
 
 # Define UI for application that plots features of movies
@@ -839,9 +850,6 @@ shinyApp(ui = ui, server = server)
   
 ```
 
-**Open it in an external view, we are not able to open it directly on this document.**
-
-**Open *./shiny.ggplot.Rmd***
 
 
 ##Conclusion
@@ -851,71 +859,263 @@ As we see in the graphoc, there is an actual relationship between number of case
 
 It is true than countries with higher GDP values trend to have higher number of cases but is it not always like that and there are a lot of countries outside this trend.
 
+This make sense, acording to [Dinero.com](https://www.dinero.com/economia/articulo/ranking-de-los-paises-que-mas-evaden-impuestos/245558) the [Onu-Winder](https://en.wikipedia.org/wiki/World_Institute_for_Development_Economics_Research) this is the list of the countries with more tax evasion.
 
-# **Third:**
+*United States
+*China
+*Japon
+*India
+*France
+*Germany
+*Australia
+*Spain
+*South Korea
+*United Kingdom
 
-##Network
+That match with the list of countries by GDP on [Wikipedia](https://en.wikipedia.org/wiki/List_of_countries_by_GDP_(nominal)) and confirm our analysis.
+
+*United States
+*European Union
+*China
+*Japon
+*Germany
+*United Kinddom
+*France
+*India
+*Italy
+*Brazil
+*Canada
 
 
-```{r  eval=FALSE, include=FALSE}
-#Selecting usefu columns
-entity <- nodes_entity %>%
-  select(1) %>%
-  mutate(type = "entity")
-
-intermediary <- nodes_intermediary %>%
-  select(1) %>%
-  mutate(type = "intermediary")
-
-officer <- nodes_officer %>%
-  select(1) %>%
-  mutate(type = "officer")
-
-#Putting all together 
-nodes <- bind_rows(entity,intermediary,officer)
+# **Third:** Which ones are the nodes?
 
 
-#Cleaning memory
-rm(entity,intermediary,officer)
+##Analysis and conclusions.
 
-edges_net <- edges %>%
-  filter(TYPE != "registered_address") %>%
-  select(START_ID, END_ID, TYPE) %>%
-  rename("type_edge" = "TYPE", "from" = "START_ID", "to" = "END_ID")
 
-nodes_net <- rename(nodes, "id" = "node_id", "type_node"= "type")
+As we will see during the analysis the Panama Papers network in huge, very complex and difficult to analyse that why the investigation of this data set is still on course and involved people from different areas and countries.
 
-rm(nodes_address, nodes_entity, nodes_intermediary, nodes_officer, edges, nodes)
+The five most influent nodes by node TYPE`s are:
 
-library(GGally)
-library(ggnetwork)
-library(network)
+```{r}
+nodes_entity$type <- "Entity"
+nodes_officer$type <- "Officer"
+nodes_intermediary$type <- "Intermediary"
+nodes_address$type <- "Address"
 
-net <- network(edges_net)
+nodes <- bind_rows(nodes_entity, nodes_officer, nodes_intermediary, nodes_address)
 
-#, vertex.attr = nodes_net, directed = TRUE
+start <- edges %>%
+  select(START_ID, TYPE) %>%
+  rename("node" = START_ID)
 
-ggnet2(net, size = 0.5, edge.alpha = 0.8, alpha = 0.75, edge.color = type_edge)
+end <- edges %>%
+  select(END_ID, TYPE) %>%
+  rename("node" = END_ID)
 
-#, color = type_node, edge.color = type_edge
-library(igraph)
-g <- graph_from_data_frame(edges_net, nodes_net, directed = TRUE)
+edges_freq <- bind_rows(end, start)
 
-plot.igraph(g)
-#, vertices = nodes_net
-#library(ggplot2)
-#library(ggraph)
+rm(end, start)
 
-#ggraph(g, layout = "with_kk") + 
-#  geom_edge_link(aes(alpha = type_edge)) + 
-#  geom_node_point(aes(color = type_node))
+freq <- edges_freq %>%
+  group_by(node) %>%
+  summarise(Freq = n())%>%
+  inner_join(nodes, by =c("node" = "node_id"))%>%
+  ungroup() %>%
+  select(type, node, name, countries, status, address, Freq)%>%
+  group_by(type)%>%
+  arrange(-Freq) %>%
+  top_n(5)%>%
+  arrange(type) %>%
+  rename("Status" = status, "Countries" = countries)
+```
 
-#library(visNetwork)
-#g_vis <- toVisNetworkData(g)
+```{r echo=FALSE}
+kable(freq, caption = "Five more connected nodes of each edge TYPE")
+```
 
-#visNetwork(nodes = g_vis$nodes, edges = g_vis$edges)
+
+### Node 14025646 (Address).
+
+
+The node 14025646 is an address located in British Virgin Islands where 1007 nodes are located. Some of them are:
+
+```{r}
+data_table <- edges %>%
+  filter(END_ID == "14025646")%>%
+  inner_join(nodes, by = c("START_ID"="node_id"))%>%
+  select(START_ID, name, countries, status, type)%>%
+  rename("node" = START_ID, "Country"=countries)%>%
+  group_by(type)
+```
+
+```{r echo=FALSE}
+kable(top_n(data_table, 5, name))
+```
+
+All nodes located here are Officer type and with NA`s status.
+
+
+### Node 10200346 (Entity).
+
+
+The entity with more conections is the "10200346", named ACCELONIC LTD. with 1007 connections.
+
+```{r}
+data_table <- edges %>%
+  filter(END_ID == "10200346")%>%
+  inner_join(nodes, by = c("START_ID"="node_id"))%>%
+  select(START_ID, name, countries, status, type)%>%
+  rename("node" = START_ID, "Country"=countries)%>%
+  group_by(type)
+```
+
+Some of the conections are:
+
+```{r echo=FALSE}
+kable(top_n(data_table, 5, name), caption = "Node 10200346 connections")
+```
+
+This Entity has one Intermediary that is the node "11003761" located in Hong Kong and 1006 Officers, most of the located in United States. At the moment the entity status is Defaulted.
+
+```{r echo=FALSE}
+plot <- as.data.frame(table(data_table$Country))
+
+ggplot(plot, aes(x="", y = Freq, fill = Var1)) +
+geom_bar(width = 1, stat = "identity") +
+  coord_polar("y", start=0) +
+  theme_minimal() +
+  labs(
+    x = " ",
+    y = " ",
+    fill = "Country",
+    title = "Distribution by country") +
+  theme(
+    axis.text.x=element_blank())
 
 ```
+
+```{r echo=FALSE}
+kable(top_n(plot,5,Freq), col.names = c("Country", "Freq"))
+```
+
+This graphic shows the distribution by country of Officers associated with the node. As we can see most of them are located in U.S.A. but there are some of them located all around the world. 
+
+
+### Node 11001746 (Intermediary).
+
+
+The Intermediary with more connections is the "11001746" called ORION HOUSE SERVICES (HK) LIMITED located in Hong Kong with 7016. The intermediary is still ACTIVE.
+
+```{r}
+data_table <- edges %>%
+  filter(START_ID == "11001746")%>%
+  inner_join(nodes, by = c("END_ID"="node_id"))%>%
+  select(END_ID, name, countries, status, type)%>%
+  rename("node" = END_ID, "Country" = countries)%>%
+  group_by(type)
+```
+
+Some of the connections of this node are:
+
+```{r echo=FALSE}
+kable(top_n(data_table, 5, name))
+```
+
+All the connections are Entities located in Hong Kong.
+
+```{r echo=FALSE}
+plot <- as.data.frame(table(data_table$status))
+
+ggplot(plot, aes(x="", y = Freq, fill = Var1)) +
+geom_bar(width = 1, stat = "identity") +
+  coord_polar("y", start=0) +
+  theme_minimal() +
+  labs(
+    x = " ",
+    y = " ",
+    fill = "Country",
+    title = "Distribution by status") +
+  theme(
+    axis.text.x=element_blank())
+
+```
+
+```{r echo=FALSE}
+kable(plot, col.names = c("Country", "Freq"))
+```
+
+This graphic shows the status distribution of the Entities associated with this node. As we can see more than 50% of them are still Active.
+
+### Node 12160432 (Officer).
+
+
+The most active Officer is the node "12160432" called MOSSFON SUBSCRIBERS LTD. located in Samoa with 3883 connections.
+
+```{r}
+data_table <- edges %>%
+  filter(START_ID == "12160432")%>%
+  inner_join(nodes, by = c("END_ID" = "node_id"))%>%
+  select(END_ID, name, countries, status, type)%>%
+  rename("node" = END_ID, "Country" = countries)%>%
+  group_by(type)
+```
+
+Some of the conncections with this node are:
+
+```{r echo=FALSE}
+kable(top_n(data_table, 5, name))
+```
+
+This node has one Address and 3882 Entities associated. The Address is on node "14048584" and correspond with the Level "5 Development; Bank of Samoa Building; Beach Road0; Apia; Samoa" where there are other 84 Entities registered.
+
+```{r echo=FALSE}
+plot <- as.data.frame(table(data_table$status))
+
+ggplot(plot, aes(x="", y = Freq, fill = Var1)) +
+geom_bar(width = 1, stat = "identity") +
+  coord_polar("y", start=0) +
+  theme_minimal() +
+  labs(
+    x = " ",
+    y = " ",
+    fill = "Country",
+    title = "Distribution of status") +
+  theme(
+    axis.text.x=element_blank())
+
+```
+
+```{r echo=FALSE}
+kable(plot, col.names = c("status", "Freq"))
+```
+
+This graphic shows the distribution of Entities associated with the node by status. As we can see, more than 50% are still Active.
+
+```{r echo=FALSE}
+plot <- as.data.frame(table(data_table$Country))
+
+ggplot(plot, aes(x="", y = Freq, fill = Var1)) +
+geom_bar(width = 1, stat = "identity") +
+  coord_polar("y", start=0) +
+  theme_minimal() +
+  labs(
+    x = " ",
+    y = " ",
+    fill = "Country",
+    title = "Distribution by country") +
+  theme(
+    axis.text.x=element_blank())
+
+```
+
+```{r echo=FALSE}
+kable(top_n(plot,5,Freq), col.names = c("Country", "Freq"))
+```
+
+This graphic shows the distribution of nodes associated with the node by country. As we can see, most of them are located in Hong Kong but there are some of them all around the world.
+
+
 #Cosiderations
 
 Obviusly, this data set is made for build a network but with the resources and knowledge we have was imposible to build it.
