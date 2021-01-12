@@ -9,3 +9,5 @@ The data set was taken from https://offshoreleaks.icij.org/pages/database
 and https://geojson-maps.ash.ms/
 
 The analysis was done using R and RStudio and the presentation is on R Markdown.
+
+Take a look on https://spaccesi.github.io/panama.papers/panama.html
