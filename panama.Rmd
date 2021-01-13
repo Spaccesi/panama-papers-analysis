@@ -29,7 +29,7 @@ require(ggplot2) #Graficos
 # Panama Paperes
 
 
-The Panama Papers are 11.5 million leaked documents that detail financial information for 213.634 offshore entities. The documents were taken from, Panamanian law firm and corporate service provider Mossack Fonseca, and were leaked in 2015 by an anonymous source.
+hhhThe Panama Papers are 11.5 million leaked documents that detail financial information for 213.634 offshore entities. The documents were taken from, Panamanian law firm and corporate service provider Mossack Fonseca, and were leaked in 2015 by an anonymous source.
 
 Those involved contracted with the law firm, Mossack Fonseca, consultants for companies. Services consists in founding and establish companies registered in a tax haven in such a way that the identity of the owners stay ocult.
 
